@@ -13,14 +13,25 @@ import scala.collection.immutable.{SortedMap,ListMap}
 import scala.util.matching._
 ----
 
+## References:
+* A Crash Course in the Diplomacy Framework by Edward Wang ( https://www.youtube.com/watch?v=4VfMCO4q26g ) 
+
 ## Lazy Module
 
 A LazyModule consists of three parts:
 
 * children: contains sub-LazyModules.
 * nodes: contains (diplomatic) nodes (extends from BaseNode). These are the "ports" of the component.
-* LazyModuleImp: actual Chisel RTL implementation (extends from MultiIOModule)
-   
+** nodes can be connected to each other with the bind operations: :=, :*=, :-*, :*=*
+** LazyModule Imp uses node.out and node.in to retrive the diplomacy-generated bundles and parameters for the node's connections.
+* LazyModuleImp: actual Chisel RTL implementation (extends from MultiIOModule or LazyModuleRaw which is without implicit clock and reset)
+
+Notes:
+
+* Nodes are connected to each other during a LazyModule's constructor.
+* Parameters (e.g. widths of the buses) are negotiated by diplomacy and stored in doParams, uoParms and diParams, uiParams, when evaluating LazyModule.module
+* Bus (Bus Interface) are connected between LazyModule.children; forward unconnected children to current LazyModule
+* A MultiIOModule (or RawModule) is instantiated and has its bus connections added during the evaluation of LzayModule.module.
 
 [source]
 ----    
@@ -159,7 +170,15 @@ object LazyModule
     bc
   }
 }
+----
 
+RTL elaboration
+* Evaluating LazyModule.module triggers LazyModuleImpLike.instantiate()
+* auto: AutoBundle will evaluated.
+* instantiate() evaluates children.module in BFS order: it obtains all of the connections for the given LazyModule, calculates all bundle parameters, mixes in bundles to the MultiIOModule, and continues.
+
+[source]
+----
 sealed trait LazyModuleImpLike extends RawModule
 {
   val wrapper: LazyModule
